@@ -3,7 +3,6 @@ local config = require 'config'
 local redish = require 'redis_helper'
 
 local _M = {
-    volume_num = math.floor(config.max_capacity/config.volume_size),
     -- write_point = {f, volume_id, offset}
     fset={}
     -- fset = {
@@ -12,6 +11,9 @@ local _M = {
     --  ...
     -- }
 }
+
+local volume_num = math.floor(config.max_capacity/config.volume_size)
+
 local function update_write_point(volume_id, offset)
     -- save in module
     _M.write_point = {
@@ -21,7 +23,8 @@ local function update_write_point(volume_id, offset)
 
     -- open file
     local path = config.mount_point..'/'..volume_id
-    local f = io.open(path, 'wb') -- write mode, in binary mode 
+    -- update mode, all previous data is preserved, in binary mode
+    local f = io.open(path, 'rb+')
     if not f then
         ngx.log(ngx.ERR, "failed to open file: ", path)
         -- todo
@@ -34,8 +37,8 @@ local function update_write_point(volume_id, offset)
     end
 
     _M.write_point['f'] = f
-
 end
+
 local function get_write_point()
     local volume_id, offset
     if not _M.write_point then
@@ -88,17 +91,22 @@ function _M.write(key, data)
     local offset=write_point['offset']
     local f=write_point['f']
     -- write to file
-    local f, err = f:write(data)
-    if not f then
+    local ok, err = f:write(data)
+    if not ok then
         ngx.log(ngx.ERR, 'failed to write: ', err)
         return 500
     end
+    -- https://stackoverflow.com/questions/7127075/what-exactly-the-pythons-file-flush-is-doing
+    -- write out any data that lingers in a program buffer to the actual file. 
+    -- Specifically what this means is that if another process has that same file open for reading, 
+    -- it will be able to access the data you just flushed to the file. However, it does not necessarily mean it has been "permanently" stored on disk.
+    f:flush()
+
     local length = #data
     -- update write point
     write_point['offset'] = offset+length
     -- save index
     -- todo
-
     local status, res = redish.set(key, table.concat({volume_id, offset, length}, ','))
     if status ~= 200 then
         return status, res
