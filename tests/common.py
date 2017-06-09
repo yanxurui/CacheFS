@@ -6,6 +6,7 @@ import os
 import json
 import unittest
 import glob
+import time
 
 import requests
 import redis
@@ -45,14 +46,15 @@ class Session(requests.Session):
 class BaseTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        restart()
+        pass
 
     def setUp(self):
         self.s = Session()
         self.r = redis.StrictRedis(host=REDIS_IP, port=REDIS_PORT, db=0)
-        self.flush()
+        self.clean()
+        time.sleep(0.1)
 
-    def flush(self):
+    def clean(self):
         # clear redis
         self.r.flushall()
         # clear disk
@@ -60,3 +62,7 @@ class BaseTest(unittest.TestCase):
         all_files = glob.glob(pattern)
         for i in all_files:
            os.remove(i)
+        # reload nginx config
+        restart()
+
+
