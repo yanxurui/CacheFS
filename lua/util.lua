@@ -16,3 +16,13 @@ function split(str, pat)
    end
    return t
 end
+
+
+function assertEqual(a, b)
+   if a~=b then
+      ngx.log(ngx.ERR, a, ' != ', b)
+      print(debug.traceback())
+      ngx.exit(ngx.HTTP_INTERNAL_SERVER_ERROR)
+   end
+   return true
+end

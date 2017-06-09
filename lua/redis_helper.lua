@@ -69,6 +69,7 @@ function _M.del(key)
 		ngx.log(ngx.ERR, "failed to delete ", key, ": ", err)
 		return 500
     elseif ok == 0 then
+    	ngx.log(ngx.WARN, "failed to delete ", key, ': not found')
     	return 404
     else
     	return 200
