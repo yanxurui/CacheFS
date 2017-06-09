@@ -2,6 +2,8 @@ require 'util'
 local config = require 'config'
 local redish = require 'redis_helper'
 
+local log = ngx.log
+local ERR = ngx.ERR
 
 local _M = {}
 
@@ -26,7 +28,7 @@ local function get_file(volume_id)
         local path = config.mount_point..'/'..volume_id
         f = io.open(path, 'rb')
         if not f then
-            ngx.log(ngx.ERR, "failed to open file: ", path)
+            log(ERR, "failed to open file: ", path)
             -- todo
             return
         end
@@ -50,7 +52,7 @@ function _M.read(key)
     local f = get_file(volume_id)
     local pos, err = f:seek("set", offset)
     if not pos then
-        ngx.log(ngx.ERR, 'failed to seek: ', err)
+        log(ERR, 'failed to seek: ', err)
         return 500
     end
     -- todo opt: read once
@@ -71,6 +73,7 @@ end
 local function erase(len)
     local write_offset = write_point.write_offset
     local erase_offset = write_point.erase_offset
+    log(ngx.INFO, 'write_offset:', write_offset, ',erase_offset:', erase_offset, ',len:', len)
     -- write to a new file
     if erase_offset < write_offset then
         return {}
@@ -79,20 +82,23 @@ local function erase(len)
     local ef = get_file(write_point.volume_id)
     local ok, err = ef:seek("set", erase_offset)
     if not ok then
-        ngx.log(ngx.ERR, "failed to seek: ", err)
+        log(ERR, "failed to seek: ", err)
         return false, err
     end
     erased_keys = {}
-    while erase_offset-write_offset-len<0 do
+    -- stop loop when there is enough room for new file
+    -- or there is no file to erase
+    while erase_offset-write_offset<len and erase_offset < config.volume_size do
+        assertEqual(ef:seek(), erase_offset)
         local key_len = ef:read("*n")
         if not key_len then
-            ngx.log(ngx.WARN, "failed to erase, maybe reach end of file")
+            log(ngx.WARN, "failed to erase, maybe reach end of file")
             break
         end
         ef:seek("cur", 1)
         local key = ef:read(key_len)
         table.insert(erased_keys, key)
-        ngx.log(ngx.INFO, key, ' was erased')
+        log(ngx.INFO, key, ' was erased')
         local data_len = ef:read("*n")
         ef:seek("cur", data_len+1)
         erase_offset = erase_offset + compute_length(key_len, data_len)
@@ -110,10 +116,10 @@ local function update_write_point()
             local temp = split(res, ',')
             volume_id, write_offset, erase_offset = tonumber(temp[1]), tonumber(temp[2]), tonumber(temp[3])
         elseif code == 404 then
-            ngx.log(ngx.WARN, 'restore write point not found in redis')
+            log(ngx.WARN, 'restore write point not found in redis')
             volume_id, write_offset, erase_offset = 0, 0, 0
         else
-            ngx.log(ngx.ERR, 'failed to restore write point from redis: ', res)
+            log(ERR, 'failed to restore write point from redis: ', res)
             return
         end
     else
@@ -121,7 +127,7 @@ local function update_write_point()
         -- then open another file to write
         if write_point.write_offset >= config.volume_size then
             volume_id = (write_point.volume_id+1)%volume_num
-            ngx.log(ngx.INFO, 'rotate to volume ', volume_id)
+            log(ngx.INFO, 'rotate to volume ', volume_id)
             write_point.f:close()
             write_offset, erase_offset = 0, 0
         else
@@ -144,13 +150,13 @@ local function update_write_point()
         -- maybe not exist
         f = io.open(path, 'wb')
         if not f then
-            ngx.log(ngx.ERR, "failed to open file: ", path)
+            log(ERR, "failed to open file: ", path)
             return
         end
     end
     local pos, err = f:seek("set", write_offset)
     if not pos then
-        ngx.log(ngx.ERR, 'failed to seek: ', err)
+        log(ERR, 'failed to seek: ', err)
         return
     end
 
@@ -170,7 +176,7 @@ function _M.write(key, data)
     end
     local ok, err = write_point.f:write(key_len, ':', key, data_len, ':', data)
     if not ok then
-        ngx.log(ngx.ERR, 'failed to write: ', err)
+        log(ERR, 'failed to write: ', err)
         return 500
     end
     -- enable read immediately
@@ -185,7 +191,7 @@ function _M.write(key, data)
     for i, k in ipairs(erased_keys) do
         status, res = redish.del(k)
         if status == 500 then
-            ngx.log(ngx.INFO, 'failed to erase ', k)
+            log(ngx.INFO, 'failed to erase ', k)
         end
     end
     local status, res = redish.set(key, table.concat({write_point.volume_id, write_offset, length}, ','))

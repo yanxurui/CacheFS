@@ -7,6 +7,7 @@ import json
 import unittest
 import glob
 import time
+import shutil
 
 import requests
 import redis
@@ -17,16 +18,6 @@ HOST = os.getenv('URL', 'http://127.0.0.1:8082/')
 URL = 'test.nfs.com'
 REDIS_IP, REDIS_PORT = '127.0.0.1', 6379
 MOUNT_POINT = '/data/cache2/yxr'
-
-def restart():
-    try:
-        out = subprocess.check_output([NGX_BIN, '-s', 'reload'], stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError as exc:
-        print('%d\nstderr: %s' % (exc.returncode, exc.output))
-        raise exc
-    else:
-        if out:
-            print('stdout: ' + out)
 
 
 class Session(requests.Session):
@@ -46,13 +37,32 @@ class Session(requests.Session):
 class BaseTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        cwd = os.path.dirname(os.path.realpath(__file__))
+        # backup original config.lua
+        shutil.move(os.path.join(cwd, '../lua/config.lua'), os.path.join(cwd, '../lua/config.lua.bak'))
+        # copy config.lua for test
+        shutil.copyfile(os.path.join(cwd, 'config.lua'), os.path.join(cwd, '../lua/config.lua'))
+
+    @classmethod
+    def tearDownClass(cls):
+        cwd = os.path.dirname(os.path.realpath(__file__))
+        shutil.move(os.path.join(cwd, '../lua/config.lua.bak'), os.path.join(cwd, '../lua/config.lua'))
 
     def setUp(self):
         self.s = Session()
         self.r = redis.StrictRedis(host=REDIS_IP, port=REDIS_PORT, db=0)
         self.clean()
         time.sleep(0.1)
+
+    def restart(self):
+        try:
+            out = subprocess.check_output([NGX_BIN, '-s', 'reload'], stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as exc:
+            print('%d\nstderr: %s' % (exc.returncode, exc.output))
+            raise exc
+        else:
+            if out:
+                print('stdout: ' + out)
 
     def clean(self):
         # clear redis
@@ -63,6 +73,13 @@ class BaseTest(unittest.TestCase):
         for i in all_files:
            os.remove(i)
         # reload nginx config
-        restart()
+        self.restart()
+
+    def put(self, key, size):
+        data = '0'*size
+        r=self.s.put(key, data)
+        self.assertEqual(r.status_code, 200)
+        k_len = len(key)
+        return len(str(k_len))+k_len+len(str(size))+size
 
 

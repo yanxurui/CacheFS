@@ -1,12 +1,10 @@
 #!/usr/bin/env
 # coding=utf-8
 
-import os
-
 from common import *
 
 class TestBasic(BaseTest):
-    def test_get_not_found(self):
+    def test_not_found(self):
         key = 'foo'
         r=self.s.get(key)
         self.assertEqual(r.status_code, 404)
@@ -83,13 +81,6 @@ class TestBasic(BaseTest):
 
         r=self.s.get(key2)
         self.assertEqual(r.status_code, 404)
-
-    def put(self, key, size):
-        data = '0'*size
-        r=self.s.put(key, data)
-        self.assertEqual(r.status_code, 200)
-        k_len = len(key)
-        return len(str(k_len))+k_len+len(str(size))+size
 
     def test_rotate(self):
         key1 = 'foo'
