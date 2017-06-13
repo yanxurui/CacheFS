@@ -13,15 +13,13 @@ class TestBasic(BaseTest):
         key = 'foo'
         # set
         data='hello world'
-        l = len(data)+len(key)+2+3
+        l = len(data)+len(key)
         r=self.s.put(key, data)
         self.assertEqual(r.status_code, 200)
-        
-        # verify redis
-        r=self.r.get(MOUNT_POINT)
-        self.assertEqual(r, '0,%d,0'%l)
-        r=self.r.get(key)
-        self.assertEqual(r, '0,0,%d'%l)
+        self.assertEqual(r.headers['X-Position'], '0,0,%d'%l)
+
+        r=self.s.get('info')
+        self.assertEqual(r.text, '0,%d'%l)
 
         # get
         r=self.s.get(key)
@@ -40,24 +38,16 @@ class TestBasic(BaseTest):
         key2 = 'bar'
         # set
         data1='hello world'
-        l1 = len(key1)+len(data1)+2+3
+        l1 = len(key1)+len(data1)
         r=self.s.put(key1, data1)
         self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.headers['X-Position'], '0,0,%d'%l1)
 
         data2='what the hell'
-        l2 = len(key2)+len(data2)+2+3
+        l2 = len(key2)+len(data2)
         r=self.s.put(key2, data2)
         self.assertEqual(r.status_code, 200)
-
-        # verify redis
-        r=self.r.get(MOUNT_POINT)
-        self.assertEqual(r, '0,%d,0'%(l1+l2))
-
-        r=self.r.get(key1)
-        self.assertEqual(r, '0,0,%d'%l1)
-
-        r=self.r.get(key2)
-        self.assertEqual(r, '0,%d,%d'%(l1, l2))
+        self.assertEqual(r.headers['X-Position'], '0,%d,%d'%(l1, l2))
 
         # get
         r=self.s.get(key1)
@@ -95,7 +85,7 @@ class TestBasic(BaseTest):
         self.assertEqual(r.status_code, 404)
 
         r=self.s.get(key2)
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 404)
 
         r=self.s.get(key3)
         self.assertEqual(r.status_code, 200)
@@ -112,7 +102,7 @@ class TestBasic(BaseTest):
         self.assertEqual(r.status_code, 404)
 
         r=self.s.get('key6')
-        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.status_code, 404)
 
         r=self.s.get('key9')
         self.assertEqual(r.status_code, 200)
