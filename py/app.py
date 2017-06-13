@@ -1,10 +1,11 @@
 import os
+from time import time
 import shutil
 import logging
 
 import config
 
-logging.basicConfig(format='%(asctime)s %(levelname)s %(name)s:%(lineno)d:%(message)s', level=getattr(logging, config.log_level))
+logging.basicConfig(filename = config.log_file, format='%(asctime)s %(levelname)s %(name)s:%(lineno)d:%(message)s', level=getattr(logging, config.log_level))
 
 import fs
 
@@ -24,6 +25,7 @@ def app(env, start_response):
 
     method = env['REQUEST_METHOD']
     logger.info('%s %s' % (method, env['PATH_INFO']))
+    s = time()
 
     key = env['PATH_INFO'][1:]
     if not key:
@@ -49,6 +51,8 @@ def app(env, start_response):
         status, body = fs.delete(key)
     else:
         status = 501
+
+    logger.info('%s %s %d %f' % (method, env['PATH_INFO'], status, time()-s))
 
     headers = fs.headers
     headers.append(('Content-Length', str(len(body))))

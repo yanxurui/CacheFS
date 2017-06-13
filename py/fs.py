@@ -98,7 +98,6 @@ def setUp():
 
 def update_index():
     volume_id = pointer['volume_id']
-    logger.info('update index for volume %d' % volume_id)
     s = time()
     # append index
     with open(get_path(volume_id, 'index'), 'w') as f:
@@ -113,19 +112,24 @@ def update_index():
             tmp.append('%s %d %d'%(key, pos[1], pos[2]))
         f.write('\n'.join(tmp))
     
-    # close data file
+    logger.info('append index for volume %d cost %fs' % (volume_id, time() - s))
+
+    # todo: close file costs too much time
+    s = time()
     pointer['file'].close()
+    logger.info('close file cost %fs' % (time() - s))
 
     volume_id = (volume_id + 1) % volume_num
     logger.info('rotate to volume %d' % volume_id)
 
-    logger.info('delete index of old volume %d' % volume_id)
+    s = time()
     idx = read_index(volume_id)
     if idx:
         for k in idx.keys():
             del index[k]
         logger.info('delete %d keys' % len(idx))
         os.remove(get_path(volume_id, 'index'))
+    logger.info('delete index of old volume %d cost %fs' % (volume_id, time() - s))
 
     # update write point
     with open(get_path('META.txt'), 'w') as meta:
@@ -139,8 +143,6 @@ def update_index():
     # https://stackoverflow.com/questions/850795/different-ways-of-clearing-lists
     del queue[:] # or queue[:] = []
     # files.pop(volume_id, None)
-    elapsed = time() -s 
-    logger.info('update index done cost %f' % elapsed)
 
 
 def get(key):
@@ -162,7 +164,11 @@ def get(key):
 def set(key, data):
     f = pointer['file']
     # todo: optimise
-    f.write(key+data)
+    try:
+        f.write(key+data)
+    except ValueError as e:
+        print(e)
+        exit(0)
     f.flush()
     offset = pointer['offset']
     length = len(key) + len(data)
@@ -203,6 +209,5 @@ logger.info('setup...')
 logger.info('volume_size: %d, volume_num: %d' % (config.volume_size, volume_num))
 s = time()
 setUp()
-elapsed = time() -s 
-logger.info('setup done cost %fs' % elapsed)
+logger.info('setup done cost %fs' % (time() - s))
 
