@@ -38,14 +38,14 @@ class BaseTest(unittest.TestCase):
     def setUpClass(cls):
         cwd = os.path.dirname(os.path.realpath(__file__))
         # backup original config.py
-        shutil.move(os.path.join(cwd, '../py/config.py'), os.path.join(cwd, '../py/config.py.bak'))
+        shutil.move(os.path.join(cwd, '../src/config.py'), os.path.join(cwd, '../src/config.py.bak'))
         # copy config.py for test
-        shutil.copyfile(os.path.join(cwd, 'config.py'), os.path.join(cwd, '../py/config.py'))
+        shutil.copyfile(os.path.join(cwd, 'config.py'), os.path.join(cwd, '../src/config.py'))
 
     @classmethod
     def tearDownClass(cls):
         cwd = os.path.dirname(os.path.realpath(__file__))
-        shutil.move(os.path.join(cwd, '../py/config.py.bak'), os.path.join(cwd, '../py/config.py'))
+        shutil.move(os.path.join(cwd, '../src/config.py.bak'), os.path.join(cwd, '../src/config.py'))
 
     def setUp(self):
         self.s = Session()
