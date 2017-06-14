@@ -123,12 +123,14 @@ end
 ```
 
 qps:5634.12
+
 latency:3.53ms
 
 
 `./wrk -c 20 -t 1 -d 10 http://127.0.0.1:1234/test_456`
 
 qps:6102.34
+
 latency:3.28ms
 
 
