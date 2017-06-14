@@ -146,7 +146,6 @@ def update_index():
 
 
 def get(key):
-    global pos
     pos = index.get(key, None)
     if not pos:
         return 404, 'not found'
