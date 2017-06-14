@@ -10,7 +10,7 @@ import time
 import shutil
 
 import requests
-import redis
+
 
 # os.getenv is equivalent, and can also give a default value instead of `None`
 NGX_BIN = os.getenv('NGX_BIN', '/opt/nginx/sbin/nginx')
