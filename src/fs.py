@@ -7,8 +7,7 @@ from config import volume_num
 
 logger = logging.getLogger(__name__)
 
-
-# data structure
+##### data structure#####
 index = {
     # key1: (volume_id, offset, size),
     # key1: (volume_id, offset, size),
@@ -25,7 +24,7 @@ pointer = {
 # keys waiting to be wriiten to disk
 queue = []
 
-# todo: response headers
+# response headers
 headers = []
 
 def get_path(filename, where = None):
@@ -40,7 +39,7 @@ def get_file(volume_id):
     f = files.get(volume_id, None)
     if not f:
         try:
-            f = open(get_path(volume_id, 'data'), 'rb')
+            f = os.open(get_path(volume_id, 'data'), os.O_RDONLY)
         except IOError:
             return None
         files[volume_id] = f
@@ -72,11 +71,13 @@ def setUp():
         logger.info('build directory structure in %s' % config.mount_point)
         os.makedirs(get_path('', 'data'))
         os.makedirs(get_path('', 'index'))
+        with open(get_path('META.txt'), 'w') as meta:
+            meta.write('0')
         volume_id = 0
     logger.info('start writing into volume %d' % volume_id)
     pointer['volume_id'] = volume_id
     pointer['offset'] = 0
-    pointer['file'] = open(get_path(pointer['volume_id'], 'data'), 'wb')
+    pointer['file'] = os.open(get_path(pointer['volume_id'], 'data'), os.O_CREAT | os.O_WRONLY)
     
     # todo
     volume_id = (volume_id + 1) % volume_num
@@ -116,7 +117,7 @@ def update_index():
 
     # todo: close file costs too much time
     s = time()
-    pointer['file'].close()
+    os.close(pointer['file'])
     logger.info('close file cost %fs' % (time() - s))
 
     volume_id = (volume_id + 1) % volume_num
@@ -135,7 +136,7 @@ def update_index():
     with open(get_path('META.txt'), 'w') as meta:
         meta.write(str(volume_id))
 
-    pointer['file'] = open(get_path(volume_id, 'data'), 'wb')
+    pointer['file'] = os.open(get_path(volume_id, 'data'), os.O_CREAT | os.O_WRONLY)
     pointer['volume_id'] = volume_id
     pointer['offset'] = 0
 
@@ -151,33 +152,32 @@ def get(key):
         return 404, 'not found'
     volume_id, offset, size = pos
     f = get_file(volume_id)
-    f.seek(offset, 0)
-    content = f.read(size)
+    os.lseek(f, offset, 0)
+    content = os.read(f, size)
     key_len = len(key)
     assert(content[:key_len] == key)
-    headers.append(('X-Position', ','.join(map(str, pos))))
+    headers.append(('X-Position', '%d,%d,%d'%pos))
     # todo: optimise
     return 200, content[key_len:]
 
 
 def put(key, data):
     f = pointer['file']
-    # todo: optimise
     try:
-        f.write(key+data)
+        # todo: optimise
+        os.write(f, key+data)
     except ValueError as e:
         print(e)
         exit(0)
-    f.flush()
     offset = pointer['offset']
     length = len(key) + len(data)
     pos = (pointer['volume_id'], offset, length)
     index[key] = pos
-    headers.append(('X-Position', ','.join(map(str, pos))))
+    headers.append(('X-Position', '%d,%d,%d'%pos))
     queue.append(key)
 
     offset = offset + length
-    assert(offset == f.tell())
+    assert(offset == os.lseek(f, 0, 1)) # os does not offer tell method
     pointer['offset'] = offset
     if offset >= config.volume_size:
         update_index()
@@ -186,9 +186,9 @@ def put(key, data):
 
 def delete(key):
     pos = index.pop(key, None)
-    volume_id = pos[0]
     if not pos:
         return 404, 'not found'
+    volume_id = pos[0]
     if volume_id != pointer['volume_id']:
         # append a record at the end of index if the file is not in current volume
         with open(get_path(volume_id, 'index'), 'a') as f:
@@ -200,8 +200,8 @@ def delete(key):
 
 def tearDown():
     for f in files.values():
-        f.close()
-    pointer['file'].close()
+        os.close(f)
+    os.close(pointer['file'])
 
 
 logger.info('setup...')
