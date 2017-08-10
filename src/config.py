@@ -1,6 +1,6 @@
 mount_point = '/data/cache2/yxr'
 volume_size = 1024*1024*1024
-volume_num = 10
+volume_num = 3
 
 log_level = 'DEBUG'
 log_file = 'cfs.log'

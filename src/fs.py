@@ -99,26 +99,19 @@ def setUp():
 
 def update_index():
     volume_id = pointer['volume_id']
-    s = time()
     # append index
     with open(get_path(volume_id, 'index'), 'w') as f:
         tmp = []
         for key in queue:
             pos = index.get(key, None)
-            logger.debug('append index for key: %s' % key)
             # deleted just now
             if not pos:
                 continue
             # key offset size\n
             tmp.append('%s %d %d'%(key, pos[1], pos[2]))
         f.write('\n'.join(tmp))
-    
-    logger.info('append index for volume %d cost %fs' % (volume_id, time() - s))
 
-    # todo: close file costs too much time
-    s = time()
     os.close(pointer['file'])
-    logger.info('close file cost %fs' % (time() - s))
 
     volume_id = (volume_id + 1) % volume_num
     logger.info('rotate to volume %d' % volume_id)
