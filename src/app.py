@@ -20,12 +20,13 @@ STATUS = {
 logger = logging.getLogger(__name__)
 
 def app(env, start_response):
+    s = time()
+
     status = 200
     body = ''
 
     method = env['REQUEST_METHOD']
     logger.info('%s %s' % (method, env['PATH_INFO']))
-    s = time()
 
     key = env['PATH_INFO'][1:]
     if not key:
@@ -52,8 +53,11 @@ def app(env, start_response):
     else:
         status = 501
 
-    logger.info('%s %s %d %f' % (method, env['PATH_INFO'], status, time()-s))
+    elapsed = time()-s
+    if elapsed > config.log_slow:
+        logger.warn('%s %s %d %fs' % (method, env['PATH_INFO'], status, time()-s))
 
+    # a dirty way to return headers
     headers = fs.headers
     headers.append(('Content-Length', str(len(body))))
     start_response(STATUS[status], headers)

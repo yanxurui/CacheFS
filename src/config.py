@@ -4,6 +4,7 @@ volume_num = 10
 
 log_level = 'DEBUG'
 log_file = 'cfs.log'
+log_slow = 0.1
 
 ip = '0.0.0.0'
 port = 1234
