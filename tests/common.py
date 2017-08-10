@@ -12,11 +12,7 @@ import shutil
 import requests
 
 
-# os.getenv is equivalent, and can also give a default value instead of `None`
-NGX_BIN = os.getenv('NGX_BIN', '/opt/nginx/sbin/nginx')
 HOST = os.getenv('URL', 'http://127.0.0.1:1234/')
-URL = 'test.nfs.com'
-MOUNT_POINT = '/data/cache2/yxr'
 
 
 class Session(requests.Session):
@@ -32,6 +28,7 @@ class Session(requests.Session):
         modified_url = self.url_base + url
         return super(Session, self).request(method, modified_url, **kwargs)
 
+s = Session()
 
 class BaseTest(unittest.TestCase):
     @classmethod
@@ -48,14 +45,14 @@ class BaseTest(unittest.TestCase):
         shutil.move(os.path.join(cwd, '../src/config.py.bak'), os.path.join(cwd, '../src/config.py'))
 
     def setUp(self):
-        self.s = Session()
-        r=self.s.get('flush')
+        # clear data & reload config
+        r=s.get('flush')
         self.assertEqual(r.status_code, 200)
         time.sleep(0.1)
 
     def put(self, key, size):
         data = '0'*size
-        r=self.s.put(key, data)
+        r=s.put(key, data)
         self.assertEqual(r.status_code, 200)
         k_len = len(key)
 

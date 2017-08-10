@@ -6,7 +6,7 @@ from common import *
 class TestBasic(BaseTest):
     def test_not_found(self):
         key = 'foo'
-        r=self.s.get(key)
+        r=s.get(key)
         self.assertEqual(r.status_code, 404)
 
     def test_a_file(self):
@@ -14,23 +14,23 @@ class TestBasic(BaseTest):
         # set
         data='hello world'
         l = len(data)+len(key)
-        r=self.s.put(key, data)
+        r=s.put(key, data)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['X-Position'], '0,0,%d'%l)
 
-        r=self.s.get('info')
+        r=s.get('info')
         self.assertEqual(r.text, '0,%d'%l)
 
         # get
-        r=self.s.get(key)
+        r=s.get(key)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.text, data)
 
         # delete
-        r=self.s.delete(key)
+        r=s.delete(key)
         self.assertEqual(r.status_code, 200)
 
-        r=self.s.get(key)
+        r=s.get(key)
         self.assertEqual(r.status_code, 404)
 
     def test_two_files(self):
@@ -39,37 +39,37 @@ class TestBasic(BaseTest):
         # set
         data1='hello world'
         l1 = len(key1)+len(data1)
-        r=self.s.put(key1, data1)
+        r=s.put(key1, data1)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['X-Position'], '0,0,%d'%l1)
 
         data2='what the hell'
         l2 = len(key2)+len(data2)
-        r=self.s.put(key2, data2)
+        r=s.put(key2, data2)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.headers['X-Position'], '0,%d,%d'%(l1, l2))
 
         # get
-        r=self.s.get(key1)
+        r=s.get(key1)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.text, data1)
 
-        r=self.s.get(key2)
+        r=s.get(key2)
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.text, data2)
 
         # delete
-        r=self.s.delete(key1)
+        r=s.delete(key1)
         self.assertEqual(r.status_code, 200)
 
-        r=self.s.delete(key2)
+        r=s.delete(key2)
         self.assertEqual(r.status_code, 200)
 
         # get again
-        r=self.s.get(key1)
+        r=s.get(key1)
         self.assertEqual(r.status_code, 404)
 
-        r=self.s.get(key2)
+        r=s.get(key2)
         self.assertEqual(r.status_code, 404)
 
     def test_rotate(self):
@@ -81,13 +81,13 @@ class TestBasic(BaseTest):
         self.put(key2, 1024*1024)
         self.put(key3, 1024*1024)
 
-        r=self.s.get(key1)
+        r=s.get(key1)
         self.assertEqual(r.status_code, 404)
 
-        r=self.s.get(key2)
+        r=s.get(key2)
         self.assertEqual(r.status_code, 404)
 
-        r=self.s.get(key3)
+        r=s.get(key3)
         self.assertEqual(r.status_code, 200)
 
     def test_multi_files(self):
@@ -95,14 +95,8 @@ class TestBasic(BaseTest):
             key = 'key%d'%i
             l = self.put(key, 600*1024)
 
-        r=self.s.get('key4')
-        self.assertEqual(r.status_code, 404)
+        for i, status in [(i, 404) for i in range(1, 7)] + [(i, 200) for i in range(7, 10)]:
+            key = 'key%d'%i
+            r=s.get(key)
+            self.assertEqual(r.status_code, status)
 
-        r=self.s.get('key5')
-        self.assertEqual(r.status_code, 404)
-
-        r=self.s.get('key6')
-        self.assertEqual(r.status_code, 404)
-
-        r=self.s.get('key9')
-        self.assertEqual(r.status_code, 200)

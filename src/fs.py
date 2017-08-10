@@ -160,7 +160,7 @@ def get(key):
     return 200, content[key_len:]
 
 
-def set(key, data):
+def put(key, data):
     f = pointer['file']
     # todo: optimise
     try:

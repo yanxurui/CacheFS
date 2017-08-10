@@ -46,7 +46,7 @@ def app(env, start_response):
         data = env['wsgi.input'].getvalue()
         if not data:
             status = 400
-        status, body = fs.set(key, data)
+        status, body = fs.put(key, data)
     elif method == 'DELETE':
         status, body = fs.delete(key)
     else:
