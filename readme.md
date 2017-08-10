@@ -1,8 +1,18 @@
-## benchmark
+## Todo
+* memory
+   [ ] memcache
+* log
+   [ ] access log
+   [x] slow log
+* performance
+   [x] close file costs too much time
+
+
+## Benchmark
+
+**write and read a file with size of 200KB**
 
 ### write
-
-**set a file with size of 200KB**
 
 #### STA
 `./wrk -c 20 -t 1 -s set_sta.lua http://127.0.0.1:770`
