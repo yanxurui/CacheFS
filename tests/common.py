@@ -12,7 +12,7 @@ import shutil
 import requests
 
 
-HOST = os.getenv('URL', 'http://127.0.0.1:1234/')
+HOST = os.getenv('URL', 'http://127.0.0.1:1235/')
 
 
 class Session(requests.Session):
@@ -54,6 +54,5 @@ class BaseTest(unittest.TestCase):
         data = '0'*size
         r=s.put(key, data)
         self.assertEqual(r.status_code, 200)
-        k_len = len(key)
 
 

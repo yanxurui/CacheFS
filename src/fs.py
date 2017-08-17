@@ -94,7 +94,6 @@ def setUp():
         volume_id = (volume_id + 1) % volume_num
 
 
-
 def update_index():
     volume_id = pointer['volume_id']
     # append index

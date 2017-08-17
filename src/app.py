@@ -2,15 +2,29 @@ import os
 from time import time
 import shutil
 import logging
+import imp
+import sys
 
-import config
-from response import Response
+if len(sys.argv)>1:
+    config_file = sys.argv[1]
+    config = imp.load_source('config', config_file)
+else:
+    import config
+    config_file = config.__file__
 
-logging.basicConfig(filename = config.log_file, format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d:%(message)s', level=getattr(logging, config.log_level))
+logging.basicConfig(filename = config.log_file, format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s', level=getattr(logging, config.log_level))
+logger = logging.getLogger(__name__)
+logger.info('config file: %s' % config_file)
 
 import fs
+from response import Response
 
-logger = logging.getLogger(__name__)
+if config.memc_on:
+    import memc
+    get, put, delete = memc.get, memc.put, memc.delete
+    logger.info('use memcache %s:%d' % (config.memc_ip, config.memc_port))
+else:
+    get, put, delete = fs.get, fs.put, fs.delete
 
 def app(env, start_response):
     s = time()
@@ -28,19 +42,20 @@ def app(env, start_response):
         fs.tearDown()
         logger.warning('delete all files in disk')
         shutil.rmtree(config.mount_point)
-        # reload config first
-        reload(config)
         reload(fs)
+        if config.memc_on:
+            memc.flush_all()
         resp = Response()
     elif method == 'GET':
-        resp = fs.get(key)
+        resp = get(key)
     elif method == 'PUT':
         data = env['wsgi.input'].getvalue()
-        if not data:
-            status = 400
-        resp = fs.put(key, data)
+        if data:
+            resp = put(key, data)
+        else:
+            resp = Response(400)
     elif method == 'DELETE':
-        resp = fs.delete(key)
+        resp = delete(key)
     else:
         resp = Response(501)
 
@@ -51,9 +66,9 @@ def app(env, start_response):
     start_response(resp.get_status(), resp.get_headers())
     return resp.body
 
-    
 
-logger.info('listening at %s:%d' % (config.ip, config.port))
+if __name__ == '__main__':
+    import bjoern
+    logger.info('listening at %s:%d' % (config.ip, config.port))
+    bjoern.run(app, config.ip, config.port)
 
-import bjoern
-bjoern.run(app, config.ip, config.port)

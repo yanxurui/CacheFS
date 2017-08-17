@@ -93,7 +93,7 @@ class TestBasic(BaseTest):
     def test_multi_files(self):
         for i in range(1, 10):
             key = 'key%d'%i
-            l = self.put(key, 600*1024)
+            self.put(key, 600*1024)
 
         for i, status in [(i, 404) for i in range(1, 7)] + [(i, 200) for i in range(7, 10)]:
             key = 'key%d'%i
