@@ -1,0 +1,2 @@
+bjoern==1.4.3
+pymemcache==1.4.3

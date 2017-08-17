@@ -1,11 +1,12 @@
 ## Todo
 * memory
-   [ ] memcache
+   [x] memcache
 * log
    [ ] access log
    [x] slow log
 * performance
-   [x] close file costs too much time
+   [x] save index
+   [x] close file
 
 
 ## Benchmark
@@ -20,13 +21,13 @@
 set_sta.lua
 ```lua
 wrk.method = "POST"
-wrk.body = string.rep('1', 204800)                                                                                 
+wrk.body = string.rep('1', 204800)
 
-counter = 1 
+counter = 1
 
 request = function()
    path = "/set/test_" .. counter
-   counter = counter + 1 
+   counter = counter + 1
    return wrk.format(nil, path)
 end
 ```
@@ -42,7 +43,7 @@ latency:20.65ms
 set_tfs.lua
 ```lua
 wrk.method = 'POST'
-wrk.body = string.rep('0', 204800) 
+wrk.body = string.rep('0', 204800)
 ```
 
 qps:1619.53
@@ -56,13 +57,13 @@ latency:13.28ms
 set_cfs.lua
 ```lua
 wrk.method = "PUT"
-wrk.body = string.rep('1', 204800)                                                                                 
+wrk.body = string.rep('1', 204800)
 
-counter = 0 
+counter = 0
 
 request = function()
    path = "/test_" .. counter
-   counter = counter + 1 
+   counter = counter + 1
    return wrk.format(nil, path)
 end
 ```
@@ -80,12 +81,12 @@ latency:5.76ms
 get_sta.lua
 ```lua
 wrk.method = "GET"
-                                                                                                                   
-counter = 1 
+
+counter = 1
 
 request = function()
    path = "/get/test_" .. counter
-   counter = counter + 1 
+   counter = counter + 1
    return wrk.format(nil, path)
 end
 ```
@@ -123,11 +124,11 @@ Here I use 2 methods: first read different files, then read the same file.
 
 get_cfs.lua
 ```lua
-counter = 1 
+counter = 1
 
 request = function()
    path = "/test_" .. counter
-   counter = counter + 1 
+   counter = counter + 1
    return wrk.format(nil, path)
 end
 ```
