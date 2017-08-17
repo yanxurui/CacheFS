@@ -4,36 +4,26 @@ import shutil
 import logging
 
 import config
+from response import Response
 
-logging.basicConfig(filename = config.log_file, format='%(asctime)s %(levelname)s %(name)s:%(lineno)d:%(message)s', level=getattr(logging, config.log_level))
+logging.basicConfig(filename = config.log_file, format='%(asctime)s %(levelname)s %(filename)s:%(lineno)d:%(message)s', level=getattr(logging, config.log_level))
 
 import fs
-
-STATUS = {
-    200: '200 OK',
-    400: '400 Bad Request',
-    404: '404 Not Found',
-    500: 'Internal Server Error',
-    501: '501 Not Implemented',
-}
 
 logger = logging.getLogger(__name__)
 
 def app(env, start_response):
     s = time()
 
-    status = 200
-    body = ''
-
     method = env['REQUEST_METHOD']
     logger.info('%s %s' % (method, env['PATH_INFO']))
 
     key = env['PATH_INFO'][1:]
     if not key:
-        status = 400
+        resp = Response(400)
     elif key == 'info':
         # todo: use signal
-        body = '%d,%d' % (fs.pointer['volume_id'], fs.pointer['offset'])
+        resp = Response(body='%d,%d' % (fs.pointer['volume_id'], fs.pointer['offset']))
     elif key == 'flush':
         fs.tearDown()
         logger.warning('delete all files in disk')
@@ -41,28 +31,25 @@ def app(env, start_response):
         # reload config first
         reload(config)
         reload(fs)
+        resp = Response()
     elif method == 'GET':
-        status, body = fs.get(key)
+        resp = fs.get(key)
     elif method == 'PUT':
         data = env['wsgi.input'].getvalue()
         if not data:
             status = 400
-        status, body = fs.put(key, data)
+        resp = fs.put(key, data)
     elif method == 'DELETE':
-        status, body = fs.delete(key)
+        resp = fs.delete(key)
     else:
-        status = 501
+        resp = Response(501)
 
     elapsed = time()-s
     if elapsed > config.log_slow:
         logger.warn('%s %s %d %fs' % (method, env['PATH_INFO'], status, time()-s))
 
-    # a dirty way to return headers
-    headers = fs.headers
-    headers.append(('Content-Length', str(len(body))))
-    start_response(STATUS[status], headers)
-    fs.headers = []
-    return body
+    start_response(resp.get_status(), resp.get_headers())
+    return resp.body
 
     
 

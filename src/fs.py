@@ -3,8 +3,9 @@ from time import time
 import logging
 
 import config
-from config import volume_num
+from response import Response
 
+volume_num = config.volume_num
 logger = logging.getLogger(__name__)
 
 ##### data structure#####
@@ -23,9 +24,6 @@ pointer = {
 }
 # keys waiting to be wriiten to disk
 queue = []
-
-# response headers
-headers = []
 
 def get_path(filename, where = None):
     if where:
@@ -142,16 +140,15 @@ def update_index():
 def get(key):
     pos = index.get(key, None)
     if not pos:
-        return 404, 'not found'
+        return Response(404, 'key %s does not exist' % key)
     volume_id, offset, size = pos
     f = get_file(volume_id)
     os.lseek(f, offset, 0)
     content = os.read(f, size)
     key_len = len(key)
     assert(content[:key_len] == key)
-    headers.append(('X-Position', '%d,%d,%d'%pos))
     # todo: optimise
-    return 200, content[key_len:]
+    return Response(200, content[key_len:], headers={'X-Position': '%d,%d,%d'%pos})
 
 
 def put(key, data):
@@ -166,7 +163,6 @@ def put(key, data):
     length = len(key) + len(data)
     pos = (pointer['volume_id'], offset, length)
     index[key] = pos
-    headers.append(('X-Position', '%d,%d,%d'%pos))
     queue.append(key)
 
     offset = offset + length
@@ -174,13 +170,13 @@ def put(key, data):
     pointer['offset'] = offset
     if offset >= config.volume_size:
         update_index()
-    return 200, 'ok'
+    return Response(200, 'ok', headers={'X-Position': '%d,%d,%d'%pos})
 
 
 def delete(key):
     pos = index.pop(key, None)
     if not pos:
-        return 404, 'not found'
+        return Response(404, 'key %s does not exist' % key)
     volume_id = pos[0]
     if volume_id != pointer['volume_id']:
         # append a record at the end of index if the file is not in current volume
@@ -188,7 +184,7 @@ def delete(key):
             # size 0 means deleted
             f.write("\n%s 0 0 0" % key)    
         
-    return 200, 'ok'
+    return Response(200, 'ok')
 
 
 def tearDown():
