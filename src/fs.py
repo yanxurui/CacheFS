@@ -76,7 +76,7 @@ def setUp():
     pointer['volume_id'] = volume_id
     pointer['offset'] = 0
     pointer['file'] = os.open(get_path(pointer['volume_id'], 'data'), os.O_CREAT | os.O_WRONLY)
-    
+
     # todo
     volume_id = (volume_id + 1) % volume_num
     while(volume_id != pointer['volume_id']):
@@ -139,13 +139,13 @@ def update_index():
 def get(key):
     pos = index.get(key, None)
     if not pos:
-        return Response(404, 'key %s does not exist' % key)
+        return Response(404, '%s does not exist' % key)
     volume_id, offset, size = pos
     f = get_file(volume_id)
     os.lseek(f, offset, 0)
     content = os.read(f, size)
     key_len = len(key)
-    assert(content[:key_len] == key)
+    assert content[:key_len] == key
     # todo: optimise
     return Response(200, content[key_len:], headers={'X-Position': '%d,%d,%d'%pos})
 
@@ -181,8 +181,8 @@ def delete(key):
         # append a record at the end of index if the file is not in current volume
         with open(get_path(volume_id, 'index'), 'a') as f:
             # size 0 means deleted
-            f.write("\n%s 0 0 0" % key)    
-        
+            f.write("\n%s 0 0" % key)
+
     return Response(200, 'ok')
 
 

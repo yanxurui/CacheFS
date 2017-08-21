@@ -3,7 +3,7 @@ volume_size = 1*1024*1024 # 1 MB
 volume_num = 2
 
 log_level = 'DEBUG'
-log_file = 'cfs.log'
+log_file = 'tests/cfs.log'
 log_slow = 0.1
 
 ip = '127.0.0.1'
