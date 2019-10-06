@@ -6,7 +6,6 @@ A key-value store for caching huge amount of data especially small files no more
 ### quick start
 clone this project to somewhere and install dependences(you'd better do this in a virtual env):
 ```
-# todo
 pip install -r requirements.txt
 ```
 start up using default config
@@ -39,26 +38,25 @@ A file is cached in memcache after it is missed a certain number of times during
 
 ### scale by nginx
 The best way to scale horizontally is using nginx as a reverse proxy which redirects requests to back CacheFSs based on consistency hash method. Every CacheFS is in charge of a disk mount point.
-![todo]()
 
 
 ## API
-Only these 3 apis are supported now.
+Only these 3 restful APIs are supported now.
 ### set
 #### Req
-PUT /<key> request body is file content
+`PUT /<key>` request body is the file content
 
 #### Resp
-* 200: file is stored
+* 200: the file (request body) is stored
 
 custome headers
 
-* **X-Position**: <volume_id>,<offset>,<size>
+* **X-Position**: `<volume_id>,<offset>,<size>`
 
 ### get
-GET /<key>
+`GET /<key>`
 
-* 200: response body is file content
+* 200: response body is the file retrieved
 * 404: file does not exist
 
 custom headers
@@ -70,7 +68,7 @@ custom headers
 
 ### delete
 #### Req
-DELETE /<key>
+`DELETE /<key>`
 
 #### Resp
 * 200: file is deleted
@@ -93,8 +91,8 @@ All files are stored under path <mount_point> which is a directory in a real fil
 
 Inspired by [seaweedfs](https://github.com/chrislusf/seaweedfs), small files as long as their filenames(for consistency check) are stored in a big file which is called volume. Why?
 
-1. Modern file systems for example ext4 use tree structure to organize files. It will take considerable time to look for a specific file in a large number of small files(tens of millions).
-2. It must be emphasized that it takes much more time to open and close file than real raed or write. So the first principle is avoiding frequently opening and closing files for every read or write. 
+1. Modern file systems for example ext4 use tree structure to organize files. It will take considerable time to look for a specific file among a large number of small files (e.g., tens of millions).
+2. It must be emphasized that it takes much more time to open and close the file than the real read or write. So the first principle is avoiding frequently opening and closing files.
 
 Every volume file under data subfolder has its corresponding index file under index subfolder. Every line in index file is in form of `<key> <offset> <size>` which reveals where a file is stored in the volume. If a file is deleted, a line `<key> 0 0` is appended to the index file.
 
@@ -103,7 +101,7 @@ META.txt is used to record the id of the current volume to write data into.
 When server starts up, index are built up in a big dict by scaning these index files.
 
 ### write & read & delete
-Data is written cyclically from volume 0 and in a volume small files are wriiten sequentially. When a volume is full, its index is dumped to disk for sake of performance. Next volume becomes the current one for writing in turn, its data(both volume and index) is erased first.
+Data is written cyclically starting from volume 0 and in a volume small files are wriiten sequentially. When a volume is full, its index is dumped to disk for the sake of performance. Next volume becomes the current one for writing in turn, its data (both volume and index) is erased first.
 
 A volume file is opened only once for all subsequent reading operations. A file is retrieved by first seeking and then reading in the volume file according to the index.
 
@@ -112,15 +110,16 @@ When a file is deleted, it's not actually removed from disk but just marked as d
 
 ## Todo
 * cache
-   [ ] expire
-   [x] memcache
-   [ ] nginx
+   - [ ] expire
+   - [x] memcache
+   - [ ] nginx
 * log
-   [ ] access log
-   [x] slow log
+   - [ ] access log
+   - [x] slow log
 * performance
-   [x] save index
-   [x] close file
+   - [x] save index
+   - [x] close file
+   - [ ] I can not attain the performance of get api in the benchmark below
 
 
 ## Test
@@ -135,11 +134,10 @@ python -m unittest discover
 
 
 ## Optimise
-### what about save every small file directly on disk
-
-
+<!-- ### what about save every small file directly on disk
+ -->
 ### file operation
-It takes a lot more time to open and close a file than read and write. So it's adivisable to open a file once and not to close it until all subsequent write and read are completed. 
+It takes much more time to open and close a file than read and write. So it's adivisable to open a file once and not to close it until all subsequent write and read are completed. 
 When performing file operations in python, it's preferable to create a file object with read() and write() methods by the built-in `open` function. This works well until I find that it takes too much time to close a big file. This can be solved by replacing file object by `os` module's system call which is intended for low-level I/O.
 It shows the difference below when write 1GB file:
 ```python
@@ -197,7 +195,7 @@ f2 = open('a.txt')
 f1.write('hello')
 print(f2.read(5))
 f1.flush()
-print(f2.read(5))
+print(f2.read(5)) # hello
 ```
 
 ```python
@@ -208,7 +206,7 @@ fd_r = os.open("temp", os.O_RDONLY)
 
 os.write(fd_w, 'hello world')
 
-print(os.read(fd_r, 5))
+print(os.read(fd_r, 5)) # hello
 
 ```
 In a short word, performance is improved a lot by using os's low-level IO operation instead of file object.
@@ -269,7 +267,7 @@ So it's a good practice to set log level to `WARNING` in production.
 
 ## Benchmark
 
-**write and read a file with size of 200KB**
+Compared with STA (a KV caching system using openresty as frontend and TFS as backend) and TFS (Taobao File System) by **writing and reading a file with size of 200KB**.
 
 ### write
 
@@ -356,7 +354,7 @@ latency:20.96ms
 
 #### TFS
 
-It's a little hard to use different tfs key to read each time.
+It's a little hard to use a distinct tfs key to read each time.
 For convenience, I read the same key. This makes the file cached by OS and the read speed is extreamly fast.
 
 ```bash
