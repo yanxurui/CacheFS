@@ -61,7 +61,7 @@ def app(env, start_response):
 
     elapsed = time()-s
     if elapsed > config.log_slow:
-        logger.warn('%s %s %d %fs' % (method, env['PATH_INFO'], status, time()-s))
+        logger.warn('%s %s %d %fs' % (method, env['PATH_INFO'], resp.status, time()-s))
 
     start_response(resp.get_status(), resp.get_headers())
     return resp.body
