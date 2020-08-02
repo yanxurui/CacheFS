@@ -9,6 +9,8 @@ STATUS = {
 class Response:
     def __init__(self, status=200, body='', headers={}):
         self.status = status
+        if type(body) is str:
+            body = body.encode()
         self.body = body
         self.headers = headers
 

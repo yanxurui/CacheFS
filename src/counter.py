@@ -5,7 +5,6 @@ bi-directionally linked list(for prune), which enables it to update itself in es
 O(1) time.
 '''
 
-from UserDict import DictMixin
 import sys
 from time import time
 

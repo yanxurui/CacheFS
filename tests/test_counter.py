@@ -4,6 +4,13 @@ import time
 from src.counter import ExpiringCounter
 
 class TestCounter(unittest.TestCase):
+    def assertEqual(self, a, b):
+        if type(a) is not list and type(b) is list:
+            self.assertEqual(list(a), b)
+
+    def assertItemsEqual(self, a, b):
+        self.assertEqual(sorted(a), sorted(b))
+
     def setUp(self):
         self.counter = ExpiringCounter(.3)
 

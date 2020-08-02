@@ -123,10 +123,19 @@ When a file is deleted, it's not actually removed from disk but just marked as d
 
 
 ## Test
+install dependencies
+```
+yum install memcached
+systemctl start memcached
+
+pip install requests
+```
+
 start server
 ```
 python src/app.py tests/config.py
 ```
+
 run tests
 ```
 python -m unittest discover
@@ -137,7 +146,7 @@ python -m unittest discover
 <!-- ### what about save every small file directly on disk
  -->
 ### file operation
-It takes much more time to open and close a file than read and write. So it's adivisable to open a file once and not to close it until all subsequent write and read are completed. 
+It takes much more time to open and close a file than read and write. So it's adivisable to open a file once and not to close it until all subsequent write and read are completed.
 When performing file operations in python, it's preferable to create a file object with read() and write() methods by the built-in `open` function. This works well until I find that it takes too much time to close a big file. This can be solved by replacing file object by `os` module's system call which is intended for low-level I/O.
 It shows the difference below when write 1GB file:
 ```python
@@ -267,55 +276,49 @@ So it's a good practice to set log level to `WARNING` in production.
 
 ## Benchmark
 
-Compared with STA (a KV caching system using openresty as frontend and TFS as backend) and TFS (Taobao File System) by **writing and reading a file with size of 200KB**.
+The results vary a lot because there are a few factors that can impact the performance:
+
+1. the performance is bound to the **disk R/W speed**
+2. the duration to observe can also affect the performance a lot because the disk usually performs much better at the first few seconds up to 500MB/s and then drops to an average speed around 50MB/s
+3. file/block size * QPS ≈ disk R/W speed. For instance, there is a large difference between the QPS resulted from writing file size 1KB and 100KB.
+4. read speed should be measured **after clearing cache** and **against 200 responses**
+
+### Disk performance
+Firstly, let's measure the disk W/R speed:
+```
+> dd if=/dev/zero of=./largefile bs=64KB count=100000
+100000+0 records in
+100000+0 records out
+6400000000 bytes (6.4 GB) copied, 121.629 s, 52.6 MB/s
+
+> free -h
+              total        used        free      shared  buff/cache   available
+Mem:           7.8G        433M        756M        427M        6.6G        6.6G
+Swap:            0B          0B          0B
+> sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
+> free -h
+              total        used        free      shared  buff/cache   available
+Mem:           7.8G        429M        6.9G        427M        505M        6.8G
+Swap:            0B          0B          0B
+
+> dd if=./largefile of=/dev/null bs=64k
+97656+1 records in
+97656+1 records out
+6400000000 bytes (6.4 GB) copied, 166.517 s, 38.4 MB/s
+```
+
+Unfortunately, the disk speed is too slow, which becomes a bottleneck.
+
 
 ### write
-
-#### STA
-`./wrk -c 20 -t 1 -s set_sta.lua http://127.0.0.1:770`
-
-set_sta.lua
-```lua
-wrk.method = "POST"
-wrk.body = string.rep('1', 204800)
-
-counter = 1
-
-request = function()
-   path = "/set/test_" .. counter
-   counter = counter + 1
-   return wrk.format(nil, path)
-end
-```
-
-qps:1041.49
-
-latency:20.65ms
-
-
-#### TFS
-`./wrk -c 20 -t 1 -s set_tfs.lua http://127.0.0.1:771/v1/tfs`
-
-set_tfs.lua
-```lua
-wrk.method = 'POST'
-wrk.body = string.rep('0', 204800)
-```
-
-qps:1619.53
-
-latency:13.28ms
-
-
-#### CFS
-`./wrk -c 20 -t 1 -s set_cfs.lua http://127.0.0.1:1234`
+file size is 64KB
 
 set_cfs.lua
 ```lua
 wrk.method = "PUT"
-wrk.body = string.rep('1', 204800)
+wrk.body = string.rep('1', 64000)
 
-counter = 0
+counter = 1
 
 request = function()
    path = "/test_" .. counter
@@ -324,62 +327,96 @@ request = function()
 end
 ```
 
-qps:3197.52
+```
+> ./wrk -c 20 -t 1 -d 30 -s set_cfs.lua http://127.0.0.1:1234
 
-latency:5.76ms
+Running 30s test @ http://127.0.0.1:1234
+  1 threads and 20 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    14.27ms   11.86ms  48.26ms   40.86%
+    Req/Sec     1.51k     2.39k   10.63k    91.67%
+  45021 requests in 30.03s, 4.08MB read
+Requests/sec:   1499.45
+Transfer/sec:    139.01KB
+```
+≈100MB/s
 
 
 ### read
 
-#### STA
-`./wrk -c 20 -t 1 -s get_sta.lua http://127.0.0.1:770`
+I use 3 methods:
 
-get_sta.lua
+1. read 40 thousand files randomly
+
+  * make sure files `test_1` ~ `test_40000` are already set after testing write above
+  * clear cache at first
+
+get_cfs1.lua
 ```lua
-wrk.method = "GET"
-
-counter = 1
-
 request = function()
-   path = "/get/test_" .. counter
-   counter = counter + 1
-   return wrk.format(nil, path)
+    counter = math.random(40000)
+    path = "/test_" .. counter
+    return wrk.format(nil, path)
 end
 ```
 
-qps:1545.52
+using cache
+```
+> free -h
+              total        used        free      shared  buff/cache   available
+Mem:           7.8G        426M        4.1G        427M        3.3G        6.7G
+Swap:            0B          0B          0B
 
-latency:20.96ms
-
-
-#### TFS
-
-It's a little hard to use a distinct tfs key to read each time.
-For convenience, I read the same key. This makes the file cached by OS and the read speed is extreamly fast.
-
-```bash
-> ls -sh a.txt
-200K a.txt
-> curl -X POST -d @a.txt http://127.0.0.1:771/v1/tfs
-{
-    "TFS_FILE_NAME": "T1pJKgBbLj1RCvBVdK"
-}
+> ./wrk -c 20 -t 1 -d 20 -s get_cfs1.lua http://127.0.0.1:1234
+Running 20s test @ http://127.0.0.1:1234
+  1 threads and 20 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     1.54ms  326.87us  13.08ms   96.50%
+    Req/Sec    12.86k   838.71    14.12k    78.50%
+  256005 requests in 20.02s, 15.28GB read
+Requests/sec:  12790.42
+Transfer/sec:    781.85MB
 ```
 
-`./wrk -c 20 -t 1 http://127.0.0.1:771/v1/tfs/T1pJKgBbLj1RCvBVdK`
+without cache
+```
+> sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
 
-qps:3906
+> ./wrk -c 20 -t 1 -d 20 -s get_cfs1.lua http://127.0.0.1:1234
+Running 20s test @ http://127.0.0.1:1234
+  1 threads and 20 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    90.26ms   64.02ms 351.87ms   78.88%
+    Req/Sec   252.98    149.41   660.00     65.61%
+  4833 requests in 20.02s, 295.43MB read
+Requests/sec:    241.37
+Transfer/sec:     14.75MB
+```
+It's strange that iostop shows the read speed has reached more than 35MB/s but the transfer speed here is only 15MB/s.
 
-latency:5.07ms
+```
+> strace -c -w -p 26810
+strace: Process 26810 attached
+^Cstrace: Process 26810 detached
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 77.24   16.083439        1653      9725           read
+ 15.18    3.160417        6320       500           epoll_wait
+  3.37    0.701037         144      4867           write
+  2.77    0.576909          59      9744           epoll_ctl
+  1.43    0.297166          61      4852           lseek
+  0.01    0.001863          44        42           fcntl
+  0.01    0.001702         113        15           stat
+  0.00    0.000919          43        21           accept
+  0.00    0.000330          15        21           close
+------ ----------- ----------- --------- --------- ----------------
+100.00   20.823781                 29787           total
+```
 
+2. read files sequentially
 
-#### CFS
-Here I use 2 methods: first read different files, then read the same file.
-
-`./wrk -c 20 -t 1 -s get_cfs.lua http://127.0.0.1:1234`
-
-get_cfs.lua
-```lua
+get_cfs2.lua
+```
 counter = 1
 
 request = function()
@@ -389,15 +426,55 @@ request = function()
 end
 ```
 
-qps:5634.12
+```
+> sudo sh -c "sync && echo 3 > /proc/sys/vm/drop_caches"
+> ./wrk -c 20 -t 1 -d 20 -s get_cfs2.lua http://127.0.0.1:1234
+Running 20s test @ http://127.0.0.1:1234
+  1 threads and 20 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency    33.55ms   14.77ms 201.97ms   53.97%
+    Req/Sec   600.39    144.40     0.92k    53.50%
+  11959 requests in 20.01s, 731.02MB read
+Requests/sec:    597.51
+Transfer/sec:     36.52MB
+```
 
-latency:3.53ms
+```
+> strace -c -w -p 26810
+strace: Process 26810 attached
+^Cstrace: Process 26810 detached
+% time     seconds  usecs/call     calls    errors syscall
+------ ----------- ----------- --------- --------- ----------------
+ 64.99   11.623380         482     24085           read
+ 16.23    2.903277        2381      1219           epoll_wait
+  7.52    1.344647          55     24105           epoll_ctl
+  7.39    1.321203         109     12032           write
+  3.85    0.688682          57     12032           lseek
+  0.01    0.002199          52        42           fcntl
+  0.01    0.001156          55        21           accept
+  0.00    0.000325          15        21           close
+------ ----------- ----------- --------- --------- ----------------
+100.00   17.884870                 73557           total
+```
 
+Why reading randomly is screamingly slow?
 
-`./wrk -c 20 -t 1 -d 10 http://127.0.0.1:1234/test_456`
+* ❌ it takes more time to seek to a random location
+* ❌ calling `math.random` in generating the request take a considerable amount of time
+* ✅ the strace profiling results show it differs in the speed of read syscall. This can be explained by the pre-reading. When we read 64KB of data, the system may read more than that and it may not need to access the disk again in the next read.
 
-qps:6102.34
+3. always read the same file (using cache)
 
-latency:3.28ms
+```
+> ./wrk -c 20 -t 1 -d 20 http://127.0.0.1:1234/test_456
 
+Running 20s test @ http://127.0.0.1:1234/test_456
+  1 threads and 20 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     1.32ms  236.77us   7.73ms   95.38%
+    Req/Sec    15.06k     0.85k   16.45k    78.00%
+  299619 requests in 20.00s, 17.89GB read
+Requests/sec:  14979.74
+Transfer/sec:      0.89GB
+```
 

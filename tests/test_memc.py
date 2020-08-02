@@ -1,7 +1,7 @@
 #!/usr/bin/env
 # coding=utf-8
 
-from common import *
+from .common import *
 
 class TestMemc(BaseTest):
     def test_a_file(self):

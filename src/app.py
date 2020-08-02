@@ -2,12 +2,19 @@ import os
 from time import time
 import shutil
 import logging
-import imp
 import sys
+from importlib import reload
+
 
 if len(sys.argv)>1:
+    import importlib.util
     config_file = sys.argv[1]
-    config = imp.load_source('config', config_file)
+    spec = importlib.util.spec_from_file_location('config', config_file)
+    config = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = config # important!
+    spec.loader.exec_module(config)
+    # py2
+    # config = imp.load_source('config', config_file)
 else:
     import config
     config_file = config.__file__
@@ -61,7 +68,7 @@ def app(env, start_response):
 
     elapsed = time()-s
     if elapsed > config.log_slow:
-        logger.warn('%s %s %d %fs' % (method, env['PATH_INFO'], resp.status, time()-s))
+        logger.warning('%s %s %d %fs' % (method, env['PATH_INFO'], resp.status, time()-s))
 
     start_response(resp.get_status(), resp.get_headers())
     return resp.body

@@ -142,10 +142,9 @@ def get(key):
         return Response(404, '%s does not exist' % key)
     volume_id, offset, size = pos
     f = get_file(volume_id)
-    os.lseek(f, offset, 0)
-    content = os.read(f, size)
+    content = os.pread(f, size, offset)
     key_len = len(key)
-    assert content[:key_len] == key
+    assert content[:key_len] == key.encode()
     # todo: optimise
     return Response(200, content[key_len:], headers={'X-Position': '%d,%d,%d'%pos})
 
@@ -154,12 +153,13 @@ def put(key, data):
     f = pointer['file']
     try:
         # todo: optimise
-        os.write(f, key+data)
+        content = key.encode()+data
+        os.write(f, content)
     except ValueError as e:
         print(e)
         exit(0)
     offset = pointer['offset']
-    length = len(key) + len(data)
+    length = len(content)
     pos = (pointer['volume_id'], offset, length)
     index[key] = pos
     queue.append(key)
