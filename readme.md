@@ -386,31 +386,33 @@ without cache
 Running 20s test @ http://127.0.0.1:1234
   1 threads and 20 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    90.26ms   64.02ms 351.87ms   78.88%
-    Req/Sec   252.98    149.41   660.00     65.61%
-  4833 requests in 20.02s, 295.43MB read
-Requests/sec:    241.37
-Transfer/sec:     14.75MB
+    Latency    90.20ms   64.57ms 356.09ms   75.11%
+    Req/Sec   250.90    152.47   660.00     68.42%
+  4833 requests in 20.01s, 295.43MB read
+Requests/sec:    241.51
+Transfer/sec:     14.76MB
 ```
 It's strange that iostop shows the read speed has reached more than 35MB/s but the transfer speed here is only 15MB/s.
 
 ```
-> strace -c -w -p 26810
-strace: Process 26810 attached
-^Cstrace: Process 26810 detached
+> strace -c -w -p 39249
+strace: Process 39249 attached
+^Cstrace: Process 39249 detached
 % time     seconds  usecs/call     calls    errors syscall
 ------ ----------- ----------- --------- --------- ----------------
- 77.24   16.083439        1653      9725           read
- 15.18    3.160417        6320       500           epoll_wait
-  3.37    0.701037         144      4867           write
-  2.77    0.576909          59      9744           epoll_ctl
-  1.43    0.297166          61      4852           lseek
-  0.01    0.001863          44        42           fcntl
-  0.01    0.001702         113        15           stat
-  0.00    0.000919          43        21           accept
-  0.00    0.000330          15        21           close
+ 48.83   16.331198        3365      4852           pread64
+ 46.39   15.512238       20600       753           epoll_wait
+  2.02    0.675492         138      4866           write
+  1.77    0.592267          60      9744           epoll_ctl
+  0.97    0.325818          66      4873         3 read
+  0.01    0.001830          43        42           fcntl
+  0.00    0.001270          60        21           close
+  0.00    0.001052          50        21           accept
+  0.00    0.000635          52        12           brk
+  0.00    0.000116          57         2           open
+  0.00    0.000109         108         1           mmap
 ------ ----------- ----------- --------- --------- ----------------
-100.00   20.823781                 29787           total
+100.00   33.442024                 25187         3 total
 ```
 
 2. read files sequentially
@@ -432,36 +434,33 @@ end
 Running 20s test @ http://127.0.0.1:1234
   1 threads and 20 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    33.55ms   14.77ms 201.97ms   53.97%
-    Req/Sec   600.39    144.40     0.92k    53.50%
-  11959 requests in 20.01s, 731.02MB read
-Requests/sec:    597.51
-Transfer/sec:     36.52MB
+    Latency    33.37ms   14.53ms 163.06ms   52.73%
+    Req/Sec   602.95    153.78     1.00k    49.00%
+  12007 requests in 20.01s, 733.96MB read
+Requests/sec:    600.07
+Transfer/sec:     36.68MB
 ```
 
 ```
-> strace -c -w -p 26810
-strace: Process 26810 attached
-^Cstrace: Process 26810 detached
+> strace -c -w -p 39249
+strace: Process 39249 attached
+^Cstrace: Process 39249 detached
 % time     seconds  usecs/call     calls    errors syscall
 ------ ----------- ----------- --------- --------- ----------------
- 64.99   11.623380         482     24085           read
- 16.23    2.903277        2381      1219           epoll_wait
-  7.52    1.344647          55     24105           epoll_ctl
-  7.39    1.321203         109     12032           write
-  3.85    0.688682          57     12032           lseek
-  0.01    0.002199          52        42           fcntl
-  0.01    0.001156          55        21           accept
-  0.00    0.000325          15        21           close
+ 55.64   10.587205         880     12027           pread64
+ 22.99    4.374518        3399      1287           epoll_wait
+  7.20    1.370636          56     24095           epoll_ctl
+  6.79    1.291104         107     12027           write
+  3.94    0.749033          62     12048           read
+  3.41    0.649476          62     10350           brk
+  0.01    0.002210          52        42           fcntl
+  0.01    0.001227          58        21           accept
+  0.01    0.001045          49        21           close
 ------ ----------- ----------- --------- --------- ----------------
-100.00   17.884870                 73557           total
+100.00   19.026456                 71918           total
 ```
 
-Why reading randomly is screamingly slow?
-
-* ❌ it takes more time to seek to a random location
-* ❌ calling `math.random` in generating the request take a considerable amount of time
-* ✅ the strace profiling results show it differs in the speed of read syscall. This can be explained by the pre-reading. When we read 64KB of data, the system may read more than that and it may not need to access the disk again in the next read.
+Why reading randomly is screamingly slow? The strace profiling results show it differs in the speed of pread syscall. This can be explained by the pre-reading. When we read 64KB of data, the system may read more than that and it may not need to access the disk again in the next read.
 
 3. always read the same file (using cache)
 
