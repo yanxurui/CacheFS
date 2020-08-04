@@ -392,7 +392,7 @@ Running 20s test @ http://127.0.0.1:1234
 Requests/sec:    241.51
 Transfer/sec:     14.76MB
 ```
-It's strange that iostop shows the read speed has reached more than 35MB/s but the transfer speed here is only 15MB/s.
+It's strange that iotop shows the read speed has reached more than 35MB/s but the transfer speed here is only 15MB/s.
 
 ```
 > strace -c -w -p 39249
@@ -460,7 +460,7 @@ strace: Process 39249 attached
 100.00   19.026456                 71918           total
 ```
 
-Why reading randomly is screamingly slow? The strace profiling results show it differs in the speed of pread syscall. This can be explained by the pre-reading. When we read 64KB of data, the system may read more than that and it may not need to access the disk again in the next read.
+Why reading randomly is screamingly slow? The strace profiling results show it differs in the speed of pread syscall. This can be explained by the expensive seeking. `pread` can be seen as `lseek`+`read`. In ext4, `lseek` is fast because it only modifies the file pointer and does some validation checks. The `read` system call will move the disk head so it takes much more time for random read than sequential read.
 
 3. always read the same file (using cache)
 
